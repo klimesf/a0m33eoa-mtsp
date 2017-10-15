@@ -28,15 +28,15 @@ public class DataLoader
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String text;
 
-            City depot = null;
-            final List<City> cities = new ArrayList<>();
+            RealCity depot = null;
+            final List<RealCity> cities = new ArrayList<>();
 
             while ((text = reader.readLine()) != null) {
-                String[] split = text.split("\\s+");
+                String[] split = text.split("\\t");
                 if (split.length != 2) {
                     throw new RuntimeException(String.format("Invalid line \"%s\" in file %s", text, filename));
                 }
-                City city = new City(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
+                RealCity city = new RealCity(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
                 if (depot == null) {
                     depot = city;
                 } else {
