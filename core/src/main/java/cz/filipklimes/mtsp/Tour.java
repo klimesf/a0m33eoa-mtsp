@@ -64,7 +64,7 @@ public class Tour
         for (int i = 0; i < subTourList.size(); i++) {
             allCities.addAll(subTourList.get(i).getCities());
             if (i < subTourList.size() - 1) {
-                allCities.add(new SplitterCity());
+                allCities.add(SplitterCity.INSTANCE);
             }
         }
 
