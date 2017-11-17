@@ -26,6 +26,8 @@ def draw_path(number, name, paths, cities):
 
     ax.scatter(x, y, c='b')
 
+    edgeColors = ['blue', 'red', 'green', 'orange', 'black']
+    i = 0
     for path in paths:
         codes = []
         codes.append(Path.MOVETO)
@@ -34,8 +36,9 @@ def draw_path(number, name, paths, cities):
         del codes[-1]
         # patch = patches.Arrow(int(path[0][0]), int(path[0][1]), int(path[0][0])-int(path[1][0]), int(path[0][1])-int(path[1][1]), width=2)
         draw_path = Path(path, codes)
-        patch = patches.PathPatch(draw_path, facecolor='none', lw=2)
+        patch = patches.PathPatch(draw_path, facecolor='none', edgecolor=edgeColors[i], lw=2)
         ax.add_patch(patch)
+        i += 1
 
     ax.set_xlim(0, 2000)
     ax.set_ylim(0, 2000)
