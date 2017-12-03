@@ -6,7 +6,7 @@ public class SubTour
 {
 
     private final RealCity depot;
-    private final List<RealCity> cities;
+    private List<RealCity> cities;
     private Long distCache = null;
 
     public SubTour(final RealCity depot, final List<RealCity> cities)
@@ -41,6 +41,12 @@ public class SubTour
     public List<RealCity> getCities()
     {
         return cities;
+    }
+
+    public void setCities(final List<RealCity> cities)
+    {
+        this.cities = cities;
+        this.distCache = null;
     }
 
 }

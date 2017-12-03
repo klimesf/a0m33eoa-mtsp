@@ -12,6 +12,7 @@
         <module>core</module>
         <module>local-search</module>
         <module>basic-evolution</module>
+        <module>memetic</module>
     </modules>
 
     <properties>
