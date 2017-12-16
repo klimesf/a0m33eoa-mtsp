@@ -8,6 +8,7 @@ import cz.eoa.templates.IndividualWithAssignedFitness;
 import cz.eoa.templates.StatisticsPerEpoch;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.*;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -23,36 +24,46 @@ public class Main
     private static final double PROBABILITY_OF_CROSSOVER = 0.75;
     private static final int POPULATION_SIZE = 3_000;
     private static final int EPOCHS_COUNT = 500;
+    private static final int EVALUATION_COUNT = 400_000;
     private static final double PROBABILITY_OF_MUTATION = 0.15;
     private static final double PROBABILITY_OF_MEME = 0.75;
 
-    public static void main(String[] args)
+    public static void main(String[] args) throws IOException
     {
-        EvolutionConfiguration<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionConfiguration = (new EvolutionConfigurationBuilder<List<City>, Tour, Long, MyStatisticsPerEpoch>())
-            .crossover(Main::edgeRecombinationCrossOver)
-            .mutation(Main::mutateAndMemetize)
-            .selector(Main::tournamentSelection)
-            .replacement(Main::keepNothing)
-            .populationInitialization(Main::intializeRandomIndividual)
-            .decoding(Main::decode)
-            .fitnessAssessment(Main::calculateFitness)
-            .fitnessIsMaximized(true)
-            .parallel(true)
-            .probabilityOfCrossover(PROBABILITY_OF_CROSSOVER)
-            .populationSize(POPULATION_SIZE)
-            .terminationCondition(epochs -> epochs.size() < EPOCHS_COUNT)
-            .statisticsCreation(MyStatisticsPerEpoch::new)
-            .build();
+        StatisticsExport.createFile("memetic", "200");
 
-        EvolutionExecutor<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionExecutor = new EvolutionExecutor<>(evolutionConfiguration);
-        List<MyStatisticsPerEpoch> statistics = evolutionExecutor.run();
-        long time = statistics.stream().mapToLong(StatisticsPerEpoch::getExecution).sum();
-        MyStatisticsPerEpoch bestEpoch = statistics.stream().max(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
-        logger.info("Executed in " + time + ", best solution in epoch " + bestEpoch.getEpoch());
-        printTour(bestEpoch.getBestIndividual().getIndividual().decode(Main::decode));
-        System.out.println("Worst epoch");
-        MyStatisticsPerEpoch worstEpoch = statistics.stream().min(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
-        printTour(worstEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+        for (int i = 0; i < 5; ++i) {
+            EvolutionConfiguration<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionConfiguration = (new EvolutionConfigurationBuilder<List<City>, Tour, Long, MyStatisticsPerEpoch>())
+                .crossover(Main::edgeRecombinationCrossOver)
+                .mutation(Main::mutateAndMemetize)
+                .selector(Main::tournamentSelection)
+                .replacement(Main::keepNothing)
+                .populationInitialization(Main::intializeRandomIndividual)
+                .decoding(Main::decode)
+                .fitnessAssessment(Main::calculateFitness)
+                .fitnessIsMaximized(true)
+                .parallel(true)
+                .probabilityOfCrossover(PROBABILITY_OF_CROSSOVER)
+                .populationSize(POPULATION_SIZE)
+                .terminationCondition(epochs -> Tour.getNumberOfEvaluations() < EVALUATION_COUNT)
+                .statisticsCreation(MyStatisticsPerEpoch::new)
+                .build();
+
+            EvolutionExecutor<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionExecutor = new EvolutionExecutor<>(evolutionConfiguration);
+            List<MyStatisticsPerEpoch> statistics = evolutionExecutor.run();
+            long time = statistics.stream().mapToLong(StatisticsPerEpoch::getExecution).sum();
+            MyStatisticsPerEpoch bestEpoch = statistics.stream().max(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
+            logger.info("Executed in " + time + ", best solution in epoch " + bestEpoch.getEpoch());
+            printTour(bestEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+            System.out.println("Worst epoch");
+            MyStatisticsPerEpoch worstEpoch = statistics.stream().min(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
+            printTour(worstEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+
+            Tour.resetNumberOfEvaluations();
+            StatisticsExport.writeValues();
+        }
+
+        StatisticsExport.flush();
     }
 
     private static IndividualWithAssignedFitness<List<City>, Tour, Long> tournamentSelection(final List<IndividualWithAssignedFitness<List<City>, Tour, Long>> population)

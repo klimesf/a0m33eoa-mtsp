@@ -1,0 +1,182 @@
+\documentclass[journal]{IEEEtrancz}
+\usepackage[utf8]{inputenc}
+\usepackage[czech]{babel}
+\usepackage{graphicx}
+\usepackage{mathtools}
+
+\begin{document}
+
+\title{TSP s několika cestujícími}
+\author{Filip Klimeš}
+
+\maketitle
+
+\begin{abstrakt}
+% Zde uvést krátky odstavec s abstraktem. V abstraktu stručně shrnuto o čem článek je.
+% Čtenář je motivován, proč by měl článek číst, poslední věta zpravidla.
+% shrnuje dosažené výsledky.
+
+\end{abstrakt}
+
+\IEEEpeerreviewmaketitle
+
+\section{Zadání}
+% Několika větami naformulované zadání práce tak, jak jste je dohodli se cvičicím.
+Za úkol máme v neorientovaném grafu o N uzlech nalézt množinu cest pro M cestujících.
+Každá cesta vychází z depotu D a na konci se do něj vrací. Všechny uzly kromě depotu
+jsou navštíveny právě jednou, žádná z cest nesmí mít nulovou délku. Cílem je minimalizovat
+délku nejdelší trasy.
+
+\section{Úvod}
+% Každý článek obsahuje krátký úvod do problematiky, v našem případě do problému.
+% zkoumaných dat. Úvod by neměl obsahovat výklad funkcionality použité neuronové sítě.
+Problém obchodního cestujícího (TSP) je známý NP-těžký problém. Jde o nalezení nejkratší
+cesty v grafu G, která navštíví všechny jeho uzly. Matematicky řečeno, jedná se o nalezení
+nejkratší hamiltonovské kružnice v úplném ohodnoceném grafu.
+
+TSP s několika cestujícími, také známé jako Vehicle Routing Problem (VRP), je obecnějším
+případem TSP. Lze ukázat, že VRP je NP-těžký problém. Pokud N $\neq$ NP, nelze VRP řešit
+v polynomiálním čase. Aplikování evolučních algoritmů je tedy na místě.
+
+\section{Cíl práce}
+% Naučte se formulovat cíl práce, zde podrobně rozeberte zadání, v závěru pak zhodnotíte, zdali
+% bylo cíle dosaženo.
+
+Cílem této práce je navrhnout, implementovat a změřit kvalitu
+
+\begin{itemize}
+\item lokálního prohledávání
+\item jednoduchého evolučního algoritmu
+\item hybridizovaného evolučního a memetického algoritmu
+\end{itemize}
+
+\section{Popis reprezentace problému}
+
+Předpokládáme, že města jsou očíslovaná od 1 do N.
+Problém budeme reprezentovat jako posloupnost čísel označujících
+daná města. Mezi tuto posloupnost bude vloženo M - 1
+oddělovačů, a to tak, že posloupnost nesmí začínat ani končit
+oddělovačem a mezi dvěma oddělovači musí být alespoň jedno číslo.
+Posloupnost čísel mezi dvěma oddělovači reprezentuje jednu z cest.
+Reprezentace zajišťuje, že vždy bude existovat M cest a každý
+cestující vždy navštíví alespoň jedno město.
+
+$$
+c_1 c_2 ... c_k S_1 c_k+1 ... c_l S_2 c_l+1 ... S_M-1 c_m+1 ... c_N
+$$
+
+\section{Popis fitness funkce}
+
+Fitness funkce spočte euklidovskou délku jednotlivých cest a vybere
+tu nejvyšší z nich.
+
+$$
+fitness(Individual) = max(\foreach p \belongs P ||p||)
+$$
+
+\section{Popis algoritmů}
+
+
+
+\subsection{Popis operátorů}
+
+\subsubsection{Perturbační operátor u lokálního prohledávání}
+
+% TODO: taboo search
+% TODO: swap mutace
+
+\subsubsection{Operátory křížení a mutace u EA}
+
+Operátor křížení využívá techniky edge-recombination. Operátor nejprve
+náhodně zvolí oddělovače jednoho z rodičů – ty budou složit jako oddělovače
+potomka. Následně si operátor z obou rodičů sestaví tzv. adjacency list, tedy
+seznam sousedností jednotlivých měst. Tzn. pokud v jednom z rodičů vedla cesta
+z města A do města B, potom seznam sousedností bude pro město A obsahovat město B
+a vice versa. Začátek reprezentace je zvolen náhodně jako první město jednoho z rodičů.
+Nakonec následuje algoritmus pro edge-recombination. Dokud neobsahuje potomek N měst,
+je podle seznamu sousedností náhodně vybíráno následující město, které ještě není v
+potomkovi zastoupeno.
+
+% TODO: pseudokód
+
+Operátor mutace zvolí dvě náhodná města (může zvolit i oddělovače) a ty
+mezi sebou vymění. Pokud výsledná reprezentace není validní, tj. pokud reprezentace
+začíná nebo končí oddělovačem nebo jsou dva oddělovače vedle sebe, jsou znovu zvolena
+a vyměněna další dvě města, dokud reprezetace není validní.
+
+\subsubsection{Způsob hybridizace EA a lokálního prohledávače u memetického algoritmu}
+
+Pro hybridizaci EA zvolíme heuristiku známou jako 3-opt algoritmus. Po dokončení
+crossoveru a mutace přidáme krok memetiky, teda individuálního učení, který nastane
+u jedince s předem zvolenou pravděpodobností. Algoritmus 3-opt postupně vybírá kombinace
+3 uzlů v nejdelší cestě jedince a zkouší rekombinovat hrany, kterými jsou spojeny. Pokud některá
+z kombinací zmenšuje délku cesty, je tato rekombinace uložena.
+
+\subsection{Hodnoty parametrů}
+
+% TODO: pravděpodobnost crossoveru
+% TODO: pravděpodobnost mutace
+% TODO: pravděpodobnost memetiky
+
+
+\section{Experimenty}
+Tato část popisuje, jak byly experimenty provedeny, nebojte se použít obrázků a tabulek, které
+zvýší vypovídací schopnost textu a přehlednost.
+
+\begin{figure}[ht]
+  \centering
+    \includegraphics{figure}
+      \caption{Název a stručný popis obrázku}
+    \label{fig:exfig}
+\end{figure}
+
+Do experimetální části se přímo hodí obrázky. Každý obrázek musí být řádně vysvětlen
+a okomentován. U grafů musí být popsány osy, pod obrázek umístíme název a
+krátké vysvětlení toho, co na obrázku je. Obrázek \ref{fig:exfig} je příklad
+umístění obrázku do dokumentu.
+
+\begin{table}
+  \centering
+  \caption{Parametry experimentu}
+  \begin{tabular}{|l||c|c|c|}
+  \hline
+    & A & B & C \\
+  \hline
+  \hline
+  S učitelem  & 0.22 & 0.27 & 0.29 \\
+  \hline
+  Bez učitele & 0.12 & 0.17 & 0.20 \\
+  \hline
+  \end{tabular}
+  \label{tab:extab}
+\end{table}
+
+Výsledky experimentu je vhodné shrnout tabulkou, příkladem
+je tabulka \ref{tab:extab}. Pro tabulku platí totéž co
+pro obrázek s výjimkou toho, že popis a název tabulky je nad tabulkou. Z tabulky
+musí být jasné, co je jejím obsahem. Vysvětlení obsahu je vhodné uvést
+do textu poblíž tabulky.
+
+\section{Diskuse}
+Referát na tento předmět by neměl být větší než 3 strany v tomto formátu.
+Vlastní text by měl obsahovat úvod do problematiky zkoumaných dat, jejich rozbor. Návrh
+použité neuronové sítě a v tabulce přehledné vstupní nastavení experimentu. Vždy je vhodné
+uvést příklad zkoumaných dat, jaké obsahují atributy apod. Diskuse je důležitá kapitola,
+která rozebírá dosažené výsledky.
+
+\section{Závěr}
+Každý článek/referát musí obsahovat závěr, který stručně shrnuje dosažené výsledky
+experimentů. Závěr neobsahuje žádná nová zjištění, která by předtím v textu nebyla rozvedena.
+Závěr je nejdůležitější část článku. Na základě závěru zpravidla pokrařujeme ve čtení
+publikace.
+
+\section*{Poděkování}
+Volitelně poděkování, třeba spolupracující instituci.
+
+\begin{literatura}{1}
+
+\bibitem{autor:rok}
+Autor P., Autor M.: \emph{Název knihy}, druh literatury, 2002.
+
+\end{literatura}
+\end{document}

@@ -1,9 +1,14 @@
 package cz.filipklimes.mtsp;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Tour
 {
+
+    private static final AtomicInteger numberOfEvaluations = new AtomicInteger(0);
+    private static final AtomicLong BSF = new AtomicLong(Long.MAX_VALUE);
 
     private final List<SubTour> subTourList;
     private final int numberOfTravelers;
@@ -21,6 +26,7 @@ public class Tour
 
     public long calculateDistance()
     {
+        int i = numberOfEvaluations.getAndAdd(1);
         long max = Long.MIN_VALUE;
         for (SubTour subTour : subTourList) {
             long dist = subTour.calculateDistance();
@@ -29,6 +35,14 @@ public class Tour
             }
         }
 
+        long bsf = BSF.get();
+        if (i % 10_000 == 0) {
+            if (max < bsf) {
+                BSF.compareAndSet(bsf, max);
+                bsf = max;
+            }
+            StatisticsExport.addValue(String.valueOf(bsf));
+        }
         return max;
     }
 
@@ -113,6 +127,17 @@ public class Tour
     public int hashCode()
     {
         return getCachedRepresentation().hashCode();
+    }
+
+    public static void resetNumberOfEvaluations()
+    {
+        numberOfEvaluations.set(0);
+        BSF.set(Long.MAX_VALUE);
+    }
+
+    public static int getNumberOfEvaluations()
+    {
+        return numberOfEvaluations.get();
     }
 
 }

@@ -8,6 +8,7 @@ import cz.eoa.templates.IndividualWithAssignedFitness;
 import cz.eoa.templates.StatisticsPerEpoch;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.*;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -15,42 +16,52 @@ public class Main
 {
 
     private static final Random RANDOM = new Random();
-    private static final int NUMBER_OF_TRAVELLERS = 3;
+    private static final int NUMBER_OF_TRAVELLERS = 5;
     private static final Logger logger = Logger.getLogger(Main.class.getName());
-    private static final Cities cities = DataLoader.load50();
+    private static final Cities cities = DataLoader.load200();
     private static final RealCity depot = cities.getDepot();
-    private static final double PROBABILITY_OF_CROSSOVER = 1;
+    private static final double PROBABILITY_OF_CROSSOVER = 0.75;
     private static final int POPULATION_SIZE = 3_000;
     private static final int EPOCHS_COUNT = 500;
-    private static final double PROBABILITY_OF_MUTATION = 0.25;
+    private static final double PROBABILITY_OF_MUTATION = 0.15;
+    private static final int EVALUATION_COUNT = 250_000;
 
-    public static void main(String[] args)
+    public static void main(String[] args) throws IOException
     {
-        EvolutionConfiguration<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionConfiguration = (new EvolutionConfigurationBuilder<List<City>, Tour, Long, MyStatisticsPerEpoch>())
-            .crossover(Main::crossOver)
-            .mutation(Main::mutateBySwapping)
-            .selector(Main::tournamentSelection)
-            .replacement(currentPopulation -> new ArrayList<>()) //generational replacement strategy. keep nothing from previous population
-            .populationInitialization(Main::intializeRandomIndividual) //strategy to initialize single individual - do it randomly
-            .decoding(Main::decode)
-            .fitnessAssessment(Main::calculateFitness)
-            .fitnessIsMaximized(true)
-            .parallel(true)
-            .probabilityOfCrossover(PROBABILITY_OF_CROSSOVER)
-            .populationSize(POPULATION_SIZE)
-            .terminationCondition(epochs -> epochs.size() < EPOCHS_COUNT)  //when to terminate evolution, after 100 epochs has been reached
-            .statisticsCreation(MyStatisticsPerEpoch::new)
-            .build();
+        StatisticsExport.createFile("evolution", "200");
 
-        EvolutionExecutor<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionExecutor = new EvolutionExecutor<>(evolutionConfiguration);
-        List<MyStatisticsPerEpoch> statistics = evolutionExecutor.run();
-        long time = statistics.stream().mapToLong(StatisticsPerEpoch::getExecution).sum();
-        MyStatisticsPerEpoch bestEpoch = statistics.stream().max(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
-        logger.info("Executed in " + time + ", best solution in epoch " + bestEpoch.getEpoch());
-        printTour(bestEpoch.getBestIndividual().getIndividual().decode(Main::decode));
-        System.out.println("Worst epoch");
-        MyStatisticsPerEpoch worstEpoch = statistics.stream().min(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
-        printTour(worstEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+        for (int i = 0; i < 5; ++i) {
+            EvolutionConfiguration<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionConfiguration = (new EvolutionConfigurationBuilder<List<City>, Tour, Long, MyStatisticsPerEpoch>())
+                .crossover(Main::edgeRecombinationCrossOver)
+                .mutation(Main::mutateBySwapping)
+                .selector(Main::tournamentSelection)
+                .replacement(currentPopulation -> new ArrayList<>()) //generational replacement strategy. keep nothing from previous population
+                .populationInitialization(Main::intializeRandomIndividual) //strategy to initialize single individual - do it randomly
+                .decoding(Main::decode)
+                .fitnessAssessment(Main::calculateFitness)
+                .fitnessIsMaximized(true)
+                .parallel(true)
+                .probabilityOfCrossover(PROBABILITY_OF_CROSSOVER)
+                .populationSize(POPULATION_SIZE)
+                .terminationCondition(epochs -> Tour.getNumberOfEvaluations() < EVALUATION_COUNT)
+                .statisticsCreation(MyStatisticsPerEpoch::new)
+                .build();
+
+            EvolutionExecutor<List<City>, Tour, Long, MyStatisticsPerEpoch> evolutionExecutor = new EvolutionExecutor<>(evolutionConfiguration);
+            List<MyStatisticsPerEpoch> statistics = evolutionExecutor.run();
+            long time = statistics.stream().mapToLong(StatisticsPerEpoch::getExecution).sum();
+            MyStatisticsPerEpoch bestEpoch = statistics.stream().max(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
+            logger.info("Executed in " + time + ", best solution in epoch " + bestEpoch.getEpoch());
+            printTour(bestEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+            System.out.println("Worst epoch");
+            MyStatisticsPerEpoch worstEpoch = statistics.stream().min(Comparator.comparing(stats -> stats.getBestIndividual().getFitness())).get();
+            printTour(worstEpoch.getBestIndividual().getIndividual().decode(Main::decode));
+
+            Tour.resetNumberOfEvaluations();
+            StatisticsExport.writeValues();
+        }
+
+        StatisticsExport.flush();
     }
 
     private static IndividualWithAssignedFitness<List<City>, Tour, Long> tournamentSelection(final List<IndividualWithAssignedFitness<List<City>, Tour, Long>> population)
@@ -85,64 +96,125 @@ public class Main
         return Optional.of(individual);
     }
 
-    private static List<Individual<List<City>, Tour>> crossOver(final Individual<List<City>, Tour> firstParent, final Individual<List<City>, Tour> secondParent)
+    private static List<Individual<List<City>, Tour>> edgeRecombinationCrossOver(final Individual<List<City>, Tour> firstParent, final Individual<List<City>, Tour> secondParent)
     {
-        List<City> firstSetOfGenes = new ArrayList<>(firstParent.getGenes().size() - NUMBER_OF_TRAVELLERS + 1);
-        List<City> secondSetOfGenes = new ArrayList<>(secondParent.getGenes().size() - NUMBER_OF_TRAVELLERS + 1);
+        List<City> firstParentGenes = firstParent.getGenes();
+        List<City> secondParentGenes = secondParent.getGenes();
+        List<City> offspring = new ArrayList<>();
 
-        List<Integer> whereToSplit = new ArrayList<>();
-
-        for (int i = 0; i < firstParent.getGenes().size(); i++) {
-            City city = firstParent.getGenes().get(i);
+        // Select splitters from random parent
+        Collection<Integer> whereToSplit = new ArrayList<>();
+        List<City> genesToSplit = RANDOM.nextInt() % 2 == 0
+            ? firstParentGenes
+            : secondParentGenes;
+        for (int i = 0; i < genesToSplit.size(); i++) {
+            City city = firstParentGenes.get(i);
             if (city instanceof SplitterCity) {
                 whereToSplit.add(i);
-                continue;
             }
-            firstSetOfGenes.add(city);
-        }
-        for (City city : secondParent.getGenes()) {
-            if (city instanceof SplitterCity) {
-                continue;
-            }
-            secondSetOfGenes.add(city);
         }
 
-        int a = RANDOM.nextInt(cities.getCities().size());
-        int b = RANDOM.nextInt(cities.getCities().size());
-        int start = Math.min(a, b);
-        int end = Math.max(a, b);
+        // Build adjacency list
+        Map<City, Set<City>> firstParentNeighborList = buildAdjacencyList(firstParentGenes);
+        Map<City, Set<City>> secondParentNeighborList = buildAdjacencyList(secondParentGenes);
+        Map<City, Set<City>> neighborList = new HashMap<>();
 
-        List<City> finalGenes = new ArrayList<>(firstSetOfGenes.size() + NUMBER_OF_TRAVELLERS - 1);
-        for (int i = 0; i < firstSetOfGenes.size(); i++) {
-            finalGenes.add(SplitterCity.INSTANCE);
-        }
-
-        for (int i = start; i <= end; i++) {
-            finalGenes.set(i, firstSetOfGenes.get(i));
-        }
-
-        int i = 0;
-        for (City city : secondSetOfGenes) {
-            if (finalGenes.contains(city)) {
-                continue;
+        firstParentNeighborList.forEach((key, value) -> {
+            if (!neighborList.containsKey(key)) {
+                neighborList.put(key, new HashSet<>());
             }
-            if (i >= start && i <= end) {
-                i = end + 1;
-            }
+            value.stream().filter(city -> !neighborList.get(key).contains(city) && city != key).forEach(city -> neighborList.get(key).add(city));
+        });
 
-            finalGenes.set(i, city);
-            ++i;
+        secondParentNeighborList.forEach((key, value) -> {
+            if (!neighborList.containsKey(key)) {
+                neighborList.put(key, new HashSet<>());
+            }
+            value.stream().filter(city -> !neighborList.get(key).contains(city) && city != key).forEach(city -> neighborList.get(key).add(city));
+        });
+
+        // Iterate until we build the instance
+        City N = RANDOM.nextInt() % 2 == 0
+            ? firstParentGenes.get(0)
+            : secondParentGenes.get(0);
+
+        while (offspring.size() < firstParentGenes.size() - NUMBER_OF_TRAVELLERS + 1) {
+            if (offspring.contains(N)) {
+                throw new RuntimeException();
+            }
+            offspring.add(N);
+            Set<City> neighbors = neighborList.get(N);
+            City nextN;
+
+            nextN = neighbors != null && !neighbors.isEmpty() ?
+                neighbors.stream()
+                    .filter(city -> !offspring.contains(city))
+                    .reduce((city1, city2) -> {
+                        if (!neighborList.containsKey(city1)) {
+                            return city2;
+                        }
+                        if (!neighborList.containsKey(city2)) {
+                            return city1;
+                        }
+                        return neighborList.get(city1).size() > neighborList.get(city2).size() ? city2 : city1;
+                    })
+                    .orElseGet(() ->
+                        neighbors.stream()
+                            .filter(city -> !offspring.contains(city))
+                            .findFirst()
+                            .orElseGet(() ->
+                                firstParentGenes.stream().filter(city -> !(city instanceof SplitterCity))
+                                    .filter(city -> !offspring.contains(city))
+                                    .reduce((city1, city2) -> RANDOM.nextInt() % 2 == 0 ? city1 : city2)
+                                    .orElse(null)
+                            )
+                    )
+                : firstParentGenes.stream()
+                    .filter(city -> !(city instanceof SplitterCity))
+                    .filter(city -> !offspring.contains(city))
+                    .reduce((city1, city2) -> RANDOM.nextInt() % 2 == 0 ? city1 : city2)
+                    .orElse(null);
+            neighborList.remove(N);
+            N = nextN;
         }
 
         for (Integer integer : whereToSplit) {
-            finalGenes.add(integer, SplitterCity.INSTANCE);
+            offspring.add(integer, SplitterCity.INSTANCE);
         }
-
-        if (!validate(finalGenes)) {
+        if (!validate(offspring)) {
             throw new RuntimeException("Invalid genes");
         }
 
-        return Collections.singletonList(new Individual<>(finalGenes));
+        return Collections.singletonList(new Individual<>(offspring));
+    }
+
+    private static Map<City, Set<City>> buildAdjacencyList(final List<City> genes)
+    {
+        Map<City, Set<City>> result = new HashMap<>();
+        int i = 0;
+        while (i < genes.size()) {
+            City curr = genes.get(i);
+
+            if (curr instanceof SplitterCity) {
+                ++i;
+                continue;
+            }
+
+            if (!result.containsKey(curr)) {
+                result.put(curr, new HashSet<>());
+            }
+
+            if (i - 1 >= 0 && !(genes.get(i - 1) instanceof SplitterCity)) {
+                result.get(curr).add(genes.get(i - 1));
+            }
+            if (i + 1 < genes.size() && !(genes.get(i + 1) instanceof SplitterCity)) {
+                result.get(curr).add(genes.get(i + 1));
+            }
+
+            ++i;
+        }
+
+        return result;
     }
 
     @NotNull
@@ -194,7 +266,7 @@ public class Main
 
     private static long calculateFitness(Tour tour)
     {
-        return - tour.calculateDistance();
+        return -tour.calculateDistance();
     }
 
     /**
